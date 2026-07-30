@@ -1,12 +1,9 @@
 name: Build and deploy static site to ECS
-
 on:
   workflow_dispatch:
-
 permissions:
   id-token: write
   contents: read
-
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -14,7 +11,6 @@ env:
   ECS_SERVICE: ${{ vars.ECS_SERVICE }}
   ECS_TASK_DEFINITION_FAMILY: ${{ vars.ECS_TASK_DEFINITION_FAMILY }}
   ECS_CONTAINER_NAME: ${{ vars.ECS_CONTAINER_NAME }}
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -25,14 +21,20 @@ jobs:
       - name: Debug OIDC token claims
         run: |
           curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | \
-            jq -r '.value' | cut -d '.' -f2 | base64 -d 2>/dev/null | jq .
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+            > token_response.json
+          echo "Raw token response:"
+          cat token_response.json
+          echo ""
+          echo "Decoded token claims:"
+          jq -r '.value' token_response.json | cut -d '.' -f2 | base64 -d 2>/dev/null | jq . || echo "Could not decode token — check raw response above"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
 
       - name: Log in to Amazon ECR
         id: ecr-login
